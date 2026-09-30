@@ -1,0 +1,18 @@
+plugins { id 'com.android.application' }
+android {
+ namespace 'com.hwserve.still.wear'
+ compileSdk 34
+ defaultConfig { minSdk 30; targetSdk 34; applicationId 'com.hwserve.still'; versionCode rootProject.ext.stillVersionCode; versionName rootProject.ext.stillVersionName }
+ signingConfigs {
+  release {
+   def keystorePath = System.getenv('STILL_KEYSTORE')
+   if (keystorePath) storeFile file(keystorePath)
+   storePassword System.getenv('STILL_KEYSTORE_PASSWORD')
+   keyAlias 'still'
+   keyPassword System.getenv('STILL_KEYSTORE_PASSWORD')
+  }
+ }
+ buildTypes { release { signingConfig signingConfigs.release } }
+ compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+dependencies { implementation project(':shared') }

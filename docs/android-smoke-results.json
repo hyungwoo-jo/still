@@ -1,0 +1,13 @@
+{
+  "device": "Android 14 emulator",
+  "passed": [
+    "pause saves remaining time",
+    "paused countdown stays fixed",
+    "background process recreation preserves deadline",
+    "system alarm completes focus in background",
+    "completed focus recorded once",
+    "completion notification posted",
+    "reopening does not duplicate completion",
+    "fourth focus starts long break automatically"
+  ]
+}
