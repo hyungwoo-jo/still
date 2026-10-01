@@ -88,7 +88,7 @@ public final class TimerEngine {
  private void ongoing() {
   NotificationManager nm=manager(); nm.createNotificationChannel(new NotificationChannel("timer","진행 중인 타이머",NotificationManager.IMPORTANCE_LOW));
   if(!state.running) { nm.cancel(1); return; }
-  Notification n=new Notification.Builder(context,"timer").setSmallIcon(R.drawable.ic_still).setContentTitle(label()).setContentText("집중의 흐름을 이어가세요").setContentIntent(open(context)).setOngoing(true).setOnlyAlertOnce(true).setWhen(System.currentTimeMillis()+state.left(SystemClock.elapsedRealtime())).setUsesChronometer(true).setChronometerCountDown(true).addAction(new Notification.Action.Builder(null,"일시정지",action(context,"toggle")).build()).addAction(new Notification.Action.Builder(null,"건너뛰기",action(context,"skip")).build()).build();
+  Notification n=new Notification.Builder(context,"timer").setSmallIcon(R.drawable.ic_still).setContentTitle(label()).setContentText(state.mode==0?"집중하는 중이에요":"휴식하는 중이에요").setContentIntent(open(context)).setOngoing(true).setOnlyAlertOnce(true).setWhen(System.currentTimeMillis()+state.left(SystemClock.elapsedRealtime())).setUsesChronometer(true).setChronometerCountDown(true).addAction(new Notification.Action.Builder(null,"일시정지",action(context,"toggle")).build()).addAction(new Notification.Action.Builder(null,"건너뛰기",action(context,"skip")).build()).build();
   if(allowed()) nm.notify(1,n);
  }
  private void notifyEnd(String ended) {
