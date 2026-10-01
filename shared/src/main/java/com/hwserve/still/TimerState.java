@@ -17,4 +17,23 @@ public final class TimerState {
   return credit;
  }
  public void reset() { remaining=duration; running=false; deadline=0; }
+ /** Reset and boot must not count a due interval. Every other arrival does. */
+ public static boolean completesOnArrival(String command, boolean due) {
+  return due && !"reset".equals(command) && !"boot".equals(command);
+ }
+ /** Remaining time after reboot. Wall-clock deadline is the only clock that survives it. */
+ public static final class BootRecovery {
+  public final long remaining;
+  public final boolean complete;
+  public BootRecovery(long remaining, boolean complete) { this.remaining=remaining; this.complete=complete; }
+  public static BootRecovery decide(long wallNow, long wallDeadline, long duration, long checkpoint) {
+   if (wallDeadline<=0) return new BootRecovery(checkpoint, false);
+   if (wallNow<wallDeadline) {
+    long left=wallDeadline-wallNow;
+    if (left>duration) left=duration;
+    return new BootRecovery(left, false);
+   }
+   return new BootRecovery(0, true);
+  }
+ }
 }

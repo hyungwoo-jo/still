@@ -25,26 +25,56 @@ public final class TimerEngine {
  public static PendingIntent action(Context c,String command) { return PendingIntent.getBroadcast(c,command.hashCode(),new Intent(c,TimerReceiver.class).setAction(command),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE); }
  public static PendingIntent open(Context c) { return PendingIntent.getActivity(c,0,new Intent(c,MainActivity.class),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE); }
  public void command(String command) {
-  long now=SystemClock.elapsedRealtime();
-  boolean ended=state.due(now);
-  if(ended) {
-   String endedLabel=label(); long focused=state.duration; long endedWall=System.currentTimeMillis()-Math.max(0,now-state.deadline);
-   boolean credit=state.advance(true,now,minutes("focus",25),minutes("short",5),minutes("long",15),prefs.getBoolean("autoFocus",false),prefs.getBoolean("autoBreak",false));
-   if(credit) record(focused,endedWall);
-   notifyEnd(endedLabel);
+  long elapsed=SystemClock.elapsedRealtime();
+  String history=null;
+  if ("boot".equals(command)) history=recoverFromBoot(elapsed);
+  else if ("reset".equals(command)) state.reset();
+  else {
+   boolean ended=state.due(elapsed);
+   if (TimerState.completesOnArrival(command, ended)) history=finishInterval(elapsed);
+   // A stale endpoint event must never complete the next interval or double count it.
+   if ("toggle".equals(command) && !ended) state.toggle(elapsed);
+   if ("skip".equals(command) && !ended) state.advance(false, elapsed, minutes("focus",25), minutes("short",5), minutes("long",15), false, false);
   }
-  // A stale endpoint event must never complete the next interval or double count it.
-  if("toggle".equals(command) && !ended) state.toggle(now);
-  if("skip".equals(command) && !ended) state.advance(false,now,minutes("focus",25),minutes("short",5),minutes("long",15),false,false);
-  if("reset".equals(command)) state.reset();
-  if("boot".equals(command)) { state.running=false; state.remaining=prefs.getLong("checkpoint",state.duration); }
-  save(); schedule(); ongoing();
+  save(history); schedule(); ongoing();
   context.sendBroadcast(new Intent(CHANGED).setPackage(context.getPackageName()));
   try { Class<?> widget=Class.forName("com.hwserve.still.StillWidget"); widget.getMethod("updateAll",Context.class).invoke(null,context); } catch(ClassNotFoundException ignored) {} catch(Exception ex) { android.util.Log.e("Still","Widget update failed",ex); }
  }
- private void save() { prefs.edit().putInt("mode",state.mode).putInt("completed",state.completed).putLong("duration",state.duration).putLong("remaining",state.remaining).putLong("deadline",state.deadline).putLong("checkpoint",state.left(SystemClock.elapsedRealtime())).putBoolean("running",state.running).apply(); }
- private void record(long duration,long wall) {
-  try { JSONArray list=new JSONArray(prefs.getString("history","[]")); list.put(new JSONObject().put("date",Instant.ofEpochMilli(wall).atZone(ZoneId.systemDefault()).toLocalDate().toString()).put("minutes",duration/60_000)); prefs.edit().putString("history",list.toString()).apply(); } catch(JSONException ex) { android.util.Log.e("Still","History",ex); }
+ private String finishInterval(long elapsed) {
+  String endedLabel=label(); long focused=state.duration;
+  long endedWall=System.currentTimeMillis()-Math.max(0, elapsed-state.deadline);
+  boolean credit=state.advance(true, elapsed, minutes("focus",25), minutes("short",5), minutes("long",15), prefs.getBoolean("autoFocus",false), prefs.getBoolean("autoBreak",false));
+  notifyEnd(endedLabel);
+  return credit ? historyWith(focused, endedWall) : null;
+ }
+ private String recoverFromBoot(long elapsed) {
+  long wallNow=System.currentTimeMillis();
+  long wallDeadline=prefs.getLong("wallDeadline", 0);
+  TimerState.BootRecovery recovery=TimerState.BootRecovery.decide(wallNow, wallDeadline, state.duration, prefs.getLong("checkpoint", state.duration));
+  state.running=false;
+  if (!recovery.complete) { state.remaining=recovery.remaining; return null; }
+  String endedLabel=label(); long focused=state.duration;
+  boolean credit=state.advance(true, elapsed, minutes("focus",25), minutes("short",5), minutes("long",15), false, false);
+  notifyEnd(endedLabel);
+  state.running=false;
+  return credit ? historyWith(focused, wallDeadline) : null;
+ }
+ private void save(String history) {
+  long left=state.left(SystemClock.elapsedRealtime());
+  android.content.SharedPreferences.Editor editor=prefs.edit()
+   .putInt("mode",state.mode).putInt("completed",state.completed)
+   .putLong("duration",state.duration).putLong("remaining",state.remaining).putLong("deadline",state.deadline)
+   .putLong("checkpoint",left).putLong("wallDeadline", state.running ? System.currentTimeMillis()+left : 0)
+   .putBoolean("running",state.running);
+  if (history!=null) editor.putString("history", history);
+  editor.apply();
+ }
+ private String historyWith(long duration, long wall) {
+  try {
+   JSONArray list=new JSONArray(prefs.getString("history","[]"));
+   list.put(new JSONObject().put("date", Instant.ofEpochMilli(wall).atZone(ZoneId.systemDefault()).toLocalDate().toString()).put("minutes", duration/60_000));
+   return list.toString();
+  } catch(JSONException ex) { android.util.Log.e("Still","History",ex); return null; }
  }
  public int[] stats(String day) { int[] r={0,0}; try { JSONArray a=new JSONArray(prefs.getString("history","[]")); for(int i=0;i<a.length();i++){ JSONObject o=a.getJSONObject(i); if(day.equals(o.getString("date"))) { r[0]++;r[1]+=o.getInt("minutes"); } } } catch(JSONException ignored) {} return r; }
  private void schedule() {
